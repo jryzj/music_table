@@ -1,0 +1,6 @@
+{
+  "api_url": "https://YOUR_API_HOST.example.com",
+  "token": "YOUR_API_TOKEN_HERE",
+  "cache_mode": "server",
+  "port": 5575
+}
