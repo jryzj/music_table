@@ -2,5 +2,8 @@
   "api_url": "https://YOUR_API_HOST.example.com",
   "token": "YOUR_API_TOKEN_HERE",
   "cache_mode": "server",
-  "port": 5575
+  "port": 55175,
+  "auth0_domain": "YOUR_TENANT.us.auth0.com",
+  "auth0_client_id": "YOUR_CLIENT_ID",
+  "auth0_audience": "https://music-api.YOUR_DOMAIN.com"
 }

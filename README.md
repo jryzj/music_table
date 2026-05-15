@@ -41,22 +41,22 @@
 - **音频**：Tone.js
 - **后端代理**：Express.js
 - **音乐生成**：ComfyUI API
+- **认证**：Auth0（OAuth2.0 / JWT）
 
 ## 目录结构
 
 ```
 release/
 ├── public/                      # 前端静态文件
+│   ├── bg.png                   # 背景图片
 │   ├── index.html
 │   └── assets/                 # 编译后的资源文件
 ├── server/                      # 后端服务器
 │   ├── server.js                # 主服务器文件
 │   ├── package.json             # 服务器依赖
 │   ├── config.json              # 配置文件（需创建）
-│   ├── credentials.json         # 认证文件（需创建）
 │   └── local_music/             # 音乐存储目录（需创建）
 ├── example.config.json           # 配置示例
-├── example.credentials.json      # 认证示例
 ├── README.md                    # 本文件
 ├── start.sh                     # Linux/Mac 启动脚本
 └── start.bat                    # Windows 启动脚本
@@ -64,7 +64,16 @@ release/
 
 ## 部署指南
 
-### 1. 准备配置文件
+### 1. Auth0 配置
+
+应用使用 Auth0 进行用户认证。需要先在 [Auth0 Dashboard](https://manage.auth0.com) 中创建应用：
+
+1. 创建 **Single Page Application**（单页应用）
+2. 配置 **Allowed Callback URLs** 和 **Allowed Logout URLs**（如 `http://your-domain:55175`）
+3. 创建 API，设置 Identifier（如 `https://music-api.your-domain.com`）
+4. 在 Machine to Machine Applications 中授权该应用访问 API
+
+### 2. 准备配置文件
 
 复制示例配置文件并修改：
 
@@ -75,27 +84,20 @@ release/
   "api_url": "https://your-comfyui-api.example.com",
   "token": "your-api-token",
   "cache_mode": "server",
-  "port": 5575
+  "port": 5575,
+  "auth0_domain": "your-tenant.us.auth0.com",
+  "auth0_client_id": "your-client-id",
+  "auth0_audience": "https://music-api.your-domain.com"
 }
 ```
 
-**server/credentials.json**
-
-```json
-{
-  "admin": "your-admin-password",
-  "user1": "password1",
-  "user2": "password2"
-}
-```
-
-### 2. 创建音乐存储目录
+### 3. 创建音乐存储目录
 
 ```bash
 mkdir -p server/local_music
 ```
 
-### 3. 安装依赖并启动
+### 4. 安装依赖并启动
 
 **Windows:**
 
@@ -126,20 +128,23 @@ chmod +x start.sh
 ./start.sh
 ```
 
-### 4. 访问应用
+### 5. 访问应用
 
-启动后访问：`http://localhost:55175`
+启动后访问：`http://localhost:55175`，使用 Auth0 登录。
 
 ## 配置说明
 
 ### config.json
 
-| 配置项        | 说明             | 示例值                     |
-| ---------- | -------------- | ----------------------- |
-| api_url    | ComfyUI API 地址 | https://api.example.com |
-| token      | API 认证 Token   | your-token-here         |
-| cache_mode | 缓存模式           | `server` 或 `browser`    |
-| port       | 服务器端口          | 55175                   |
+| 配置项             | 说明              | 示例值                            |
+| --------------- | --------------- | ------------------------------ |
+| api_url         | ComfyUI API 地址  | https://api.example.com        |
+| token           | ComfyUI API Token | your-token-here                |
+| cache_mode      | 缓存模式            | `server` 或 `browser`           |
+| port            | 服务器端口           | 55175                          |
+| auth0_domain    | Auth0 租户域名      | your-tenant.us.auth0.com       |
+| auth0_client_id | Auth0 应用 Client ID | dtVgHVCdcC5eyS...              |
+| auth0_audience  | Auth0 API 标识符    | https://music-api.your-domain.com |
 
 ### cache_mode 缓存模式
 
@@ -155,21 +160,11 @@ chmod +x start.sh
 - 适合单用户使用
 - 不占用服务器存储空间
 
-### credentials.json
-
-用户认证文件，格式为 `用户名: 密码`。
-
-登录时使用 Basic 认证：
-
-```javascript
-const auth = btoa(`${username}:${password}`)
-```
-
 ## 使用说明
 
 ### 登录
 
-首次使用需要登录。点击右上角登录按钮，输入用户名和密码。
+首次使用需要登录。点击 **"Login with Auth0"** 按钮，跳转到 Auth0 登录页面。支持邮箱+密码登录、社交账号登录等。登录后自动跳转回应用。
 
 ### 生成音乐
 
@@ -210,21 +205,24 @@ npm run dev
 npm run build
 ```
 
-输出到 `dist/` 目录。
+输出到 `dist/` 目录。将 `dist/` 内容复制到 `release/public/`。
+
+```bash
+cp -r dist/* release/public/
+```
 
 ## API 接口
 
-| 接口                | 方法   | 说明       |
-| ----------------- | ---- | -------- |
-| /api/login        | POST | 用户登录     |
-| /api/config       | GET  | 获取服务器配置  |
-| /api/system_stats | GET  | 检查服务器状态  |
-| /api/prompt       | POST | 提交音乐生成任务 |
-| /api/history/:id  | GET  | 获取生成历史   |
-| /music-save       | POST | 保存音乐到服务器 |
-| /music-files      | GET  | 获取音乐文件列表 |
-| /music/:filename  | GET  | 获取特定音乐文件 |
-| /stream/*         | GET  | 流式代理接口   |
+| 接口                | 方法   | 说明                    | 认证要求             |
+| ----------------- | ---- | --------------------- | ---------------- |
+| /api/config       | GET  | 获取服务器配置              | 无 |
+| /api/system_stats | GET  | 检查 ComfyUI 服务器状态      | 无 |
+| /api/prompt       | POST | 提交音乐生成任务（代理到 ComfyUI） | 需要 ComfyUI Token |
+| /api/history/:id  | GET  | 获取生成历史（代理到 ComfyUI）   | 需要 ComfyUI Token |
+| /music-save       | POST | 保存音乐到服务器              | 需要 Auth0 JWT    |
+| /music-files      | GET  | 获取音乐文件列表              | 需要 Auth0 JWT    |
+| /music/:filename  | GET  | 获取特定音乐文件              | 需要 Auth0 JWT    |
+| /stream/*         | GET  | 流式代理接口（代理到 ComfyUI）   | 需要 ComfyUI Token |
 
 ## 故障排除
 
@@ -237,6 +235,13 @@ npm run build
 ### 缓存列表显示数量与实际不符
 
 可能是 IndexedDB 中的 blob 数据损坏。可在设置中调整缓存大小触发清理。
+
+### Auth0 登录失败
+
+1. 检查 Auth0 Dashboard 中 Allowed Callback URLs 是否包含当前访问地址
+2. 确认 API Audience 配置与应用中的 `auth0_audience` 一致
+3. 确认应用类型为 **Single Page Application**
+4. 在 Machine to Machine Applications 中授权应用访问 API
 
 ### 生成失败
 

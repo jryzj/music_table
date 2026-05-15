@@ -3,7 +3,8 @@ import cors from 'cors'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
-import crypto from 'crypto'
+import { expressjwt } from 'express-jwt'
+import { expressJwtSecret } from 'jwks-rsa'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -22,26 +23,6 @@ const TOKEN = serverConfig.token || ''
 const TARGET_HOST = serverConfig.api_url ? serverConfig.api_url.replace(/^https?:\/\//, '') : 'localhost'
 const PORT = serverConfig.port || 55175
 
-function loadCredentials() {
-  try {
-    const credPath = path.join(__dirname, 'credentials.json')
-    const credData = fs.readFileSync(credPath, 'utf8')
-    return JSON.parse(credData)
-  } catch (err) {
-    return {}
-  }
-}
-
-function authenticate(req) {
-  const authHeader = req.headers.authorization
-  if (!authHeader || !authHeader.startsWith('Basic ')) return false
-  const base64 = authHeader.slice(6)
-  const decoded = Buffer.from(base64, 'utf8').toString()
-  const [username, password] = decoded.split(':')
-  const credentials = loadCredentials()
-  return credentials[username] === password
-}
-
 if (!fs.existsSync(MUSIC_DIR)) {
   fs.mkdirSync(MUSIC_DIR, { recursive: true })
   console.log(`[Server] Created music directory: ${MUSIC_DIR}`)
@@ -55,28 +36,25 @@ app.use((req, res, next) => {
   next()
 })
 
-app.post('/api/login', (req, res) => {
-  if (req.method === 'POST') {
-    const authHeader = req.headers.authorization || ''
-    const base64 = authHeader.startsWith('Basic ')
-      ? authHeader.slice(6)
-      : Buffer.from(authHeader).toString('base64')
-    const decoded = Buffer.from(base64, 'base64').toString('utf8')
-    const [username, password] = decoded.split(':')
-    const credentials = loadCredentials()
-    if (credentials[username] === password) {
-      const token = crypto.randomBytes(32).toString('hex')
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
-      res.end(JSON.stringify({ success: true, token }))
-    } else {
-      res.writeHead(401, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
-      res.end(JSON.stringify({ success: false }))
-    }
-  } else {
-    res.writeHead(404)
-    res.end()
-  }
-})
+// Auth0 JWT 验证中间件
+const AUTH0_DOMAIN = serverConfig.auth0_domain
+const AUTH0_AUDIENCE = serverConfig.auth0_audience
+if (AUTH0_DOMAIN && AUTH0_AUDIENCE) {
+  const checkJwt = expressjwt({
+    secret: expressJwtSecret({
+      cache: true,
+      rateLimit: true,
+      jwksRequestsPerMinute: 5,
+      jwksUri: `https://${AUTH0_DOMAIN}/.well-known/jwks.json`
+    }),
+    audience: AUTH0_AUDIENCE,
+    issuer: `https://${AUTH0_DOMAIN}/`,
+    algorithms: ['RS256']
+  })
+  app.use('/music-save', checkJwt)
+  app.use('/music-files', checkJwt)
+  app.use('/music', checkJwt)
+}
 
 app.get('/api/config', (req, res) => {
   if (req.method === 'GET') {
