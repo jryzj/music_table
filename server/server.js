@@ -5,7 +5,7 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 import { expressjwt } from 'express-jwt'
 import { expressJwtSecret } from 'jwks-rsa'
-import { initDb, closeDb, logUserAccess, logGeneration, queryUserAccess, queryGenerationLog } from '../../server/db.js'
+import { initDb, closeDb, logUserAccess, logGeneration, queryUserAccess, queryGenerationLog, insertMusicManagement, updateMusicStatus, deleteMusicRecord, getMusicFilename, queryMusicManagement } from './db.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -202,6 +202,66 @@ app.get('/api/admin/db/generation-log', (req, res) => {
     const result = queryGenerationLog({ offset, limit, sortBy, sortOrder, search })
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
     res.end(JSON.stringify(result))
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+    res.end(JSON.stringify({ error: err.message }))
+  }
+})
+
+app.get('/api/admin/music', (req, res) => {
+  try {
+    const offset = parseInt(req.query.offset) || 0
+    const limit = parseInt(req.query.limit) || 50
+    const sortBy = req.query.sortBy || 'created_at'
+    const sortOrder = req.query.sortOrder || 'DESC'
+    const search = req.query.search || ''
+    const result = queryMusicManagement({ offset, limit, sortBy, sortOrder, search })
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+    res.end(JSON.stringify(result))
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+    res.end(JSON.stringify({ error: err.message }))
+  }
+})
+
+app.post('/api/admin/music/:id/status', (req, res) => {
+  let body = ''
+  req.on('data', chunk => body += chunk)
+  req.on('end', () => {
+    try {
+      const id = parseInt(req.params.id)
+      const { status } = JSON.parse(body)
+      if (!['open', 'hidden', 'locked'].includes(status)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Invalid status' }))
+        return
+      }
+      updateMusicStatus(id, status)
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+      res.end(JSON.stringify({ success: true }))
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+      res.end(JSON.stringify({ error: err.message }))
+    }
+  })
+})
+
+app.delete('/api/admin/music/:id', (req, res) => {
+  try {
+    const id = parseInt(req.params.id)
+    const filename = getMusicFilename(id)
+    if (!filename) {
+      res.writeHead(404, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Not found' }))
+      return
+    }
+    const filepath = path.join(MUSIC_DIR, filename)
+    if (fs.existsSync(filepath)) {
+      fs.unlinkSync(filepath)
+    }
+    deleteMusicRecord(id)
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+    res.end(JSON.stringify({ success: true }))
   } catch (err) {
     res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
     res.end(JSON.stringify({ error: err.message }))
@@ -455,8 +515,36 @@ app.use('/music-save', (req, res) => {
         const filename = `music_${Date.now()}_${Math.random().toString(36).substring(7)}.flac`
         const filepath = path.join(MUSIC_DIR, filename)
         fs.writeFileSync(filepath, Buffer.concat(body))
+        const musicResult = insertMusicManagement({
+          filename,
+          userSub: req.auth?.sub,
+          genres: req.query.genres,
+          vocalType: req.query.vocalType,
+          customTags: req.query.customTags,
+          customLyrics: req.query.customLyrics,
+          duration: req.query.duration ? parseInt(req.query.duration) : null,
+          bpm: req.query.bpm ? parseInt(req.query.bpm) : null,
+          effect: req.query.effect,
+          effectIntensity: req.query.effectIntensity ? parseFloat(req.query.effectIntensity) : null,
+          seed: req.query.seed ? parseInt(req.query.seed) : null
+        })
+        logGeneration({
+          userSub: req.auth?.sub,
+          genres: req.query.genres,
+          vocalType: req.query.vocalType,
+          customTags: req.query.customTags,
+          customLyrics: req.query.customLyrics,
+          duration: req.query.duration ? parseInt(req.query.duration) : null,
+          bpm: req.query.bpm ? parseInt(req.query.bpm) : null,
+          effect: req.query.effect,
+          effectIntensity: req.query.effectIntensity ? parseFloat(req.query.effectIntensity) : null,
+          seed: req.query.seed ? parseInt(req.query.seed) : null,
+          status: 'success',
+          trackId: String(musicResult.id),
+          fileName: filename
+        })
         res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
-        res.end(JSON.stringify({ success: true, filename }))
+        res.end(JSON.stringify({ success: true, filename, musicId: musicResult.id }))
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ success: false, error: err.message }))
