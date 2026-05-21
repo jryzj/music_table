@@ -84,10 +84,13 @@ release/
   "api_url": "https://your-comfyui-api.example.com",
   "token": "your-api-token",
   "cache_mode": "server",
-  "port": 5575,
+  "port": 55175,
   "auth0_domain": "your-tenant.us.auth0.com",
   "auth0_client_id": "your-client-id",
-  "auth0_audience": "https://music-api.your-domain.com"
+  "auth0_audience": "https://music-api.your-domain.com",
+  "auth0_mgmt_client_id": "your-m2m-client-id",
+  "auth0_mgmt_client_secret": "your-m2m-client-secret",
+  "admin_emails": ["admin@example.com"]
 }
 ```
 
@@ -136,15 +139,18 @@ chmod +x start.sh
 
 ### config.json
 
-| 配置项             | 说明              | 示例值                            |
-| --------------- | --------------- | ------------------------------ |
-| api_url         | ComfyUI API 地址  | https://api.example.com        |
-| token           | ComfyUI API Token | your-token-here                |
-| cache_mode      | 缓存模式            | `server` 或 `browser`           |
-| port            | 服务器端口           | 55175                          |
-| auth0_domain    | Auth0 租户域名      | your-tenant.us.auth0.com       |
-| auth0_client_id | Auth0 应用 Client ID | dtVgHVCdcC5eyS...              |
-| auth0_audience  | Auth0 API 标识符    | https://music-api.your-domain.com |
+| 配置项                    | 说明                    | 示例值                                 |
+| ----------------------- | ----------------------- | ----------------------------------- |
+| api_url                 | ComfyUI API 地址        | https://api.example.com             |
+| token                   | ComfyUI API Token       | your-token-here                     |
+| cache_mode              | 缓存模式                  | `server` 或 `browser`                |
+| port                    | 服务器端口                | 55175                               |
+| auth0_domain            | Auth0 租户域名           | your-tenant.us.auth0.com            |
+| auth0_client_id         | Auth0 应用 Client ID    | dtVgHVCdcC5eyS...                   |
+| auth0_audience          | Auth0 API 标识符         | https://music-api.your-domain.com   |
+| auth0_mgmt_client_id    | Auth0 M2M Client ID    | machine-to-machine 应用的 Client ID  |
+| auth0_mgmt_client_secret| Auth0 M2M Client Secret| machine-to-machine 应用的 Client Secret |
+| admin_emails            | 管理员邮箱列表            | ["admin@example.com"]               |
 
 ### cache_mode 缓存模式
 
@@ -188,6 +194,16 @@ chmod +x start.sh
 3. 可删除不想保留的音乐
 4. 在设置中可调整缓存大小
 
+### 管理面板
+
+路径 `/admin`（需使用管理员账号登录 Auth0）：
+
+- **User Access** — 记录所有用户的登录访问，可搜索和排序
+- **Generation Log** — 记录每次音乐生成的详情（风格、人声、标签、歌词、文件名等），可搜索和排序
+- **User Management** — 查看和管理 Auth0 用户，支持封禁和删除
+
+任意字段内容过长时，点击文字即可弹出完整内容。
+
 ## 开发
 
 ### 开发模式
@@ -217,12 +233,16 @@ cp -r dist/* release/public/
 | ----------------- | ---- | --------------------- | ---------------- |
 | /api/config       | GET  | 获取服务器配置              | 无 |
 | /api/system_stats | GET  | 检查 ComfyUI 服务器状态      | 无 |
-| /api/prompt       | POST | 提交音乐生成任务（代理到 ComfyUI） | 需要 ComfyUI Token |
+| /api/prompt             | POST | 提交音乐生成任务（代理到 ComfyUI）     | 需要 ComfyUI Token |
+| /api/log-generation     | POST | 记录音乐生成日志到数据库              | 无需认证              |
+| /api/log-access         | POST | 记录用户访问日志到数据库              | 无需认证              |
 | /api/history/:id  | GET  | 获取生成历史（代理到 ComfyUI）   | 需要 ComfyUI Token |
 | /music-save       | POST | 保存音乐到服务器              | 需要 Auth0 JWT    |
 | /music-files      | GET  | 获取音乐文件列表              | 需要 Auth0 JWT    |
 | /music/:filename  | GET  | 获取特定音乐文件              | 需要 Auth0 JWT    |
-| /stream/*         | GET  | 流式代理接口（代理到 ComfyUI）   | 需要 ComfyUI Token |
+| /stream/*              | GET  | 流式代理接口（代理到 ComfyUI）        | 需要 ComfyUI Token |
+| /admin/db/*            | GET  | Admin 数据库查询接口               | 需要 Auth0 JWT + 管理员 |
+| /admin/users/*         | GET/DELETE | 用户管理接口               | 需要 Auth0 JWT + 管理员 |
 
 ## 故障排除
 

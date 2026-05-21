@@ -5,7 +5,7 @@
   "port": 55175,
   "auth0_domain": "YOUR_TENANT.us.auth0.com",
   "auth0_client_id": "YOUR_CLIENT_ID",
-  "auth0_audience": "https://music-api.YOUR_DOMAIN.com",,
+  "auth0_audience": "https://music-api.YOUR_DOMAIN.com",
   "auth0_mgmt_client_id": "client_id in  Machine to Machine Application",
   "auth0_mgmt_client_secret":"client_secret in Machine to Machine Application",
   "admin_emails": []

@@ -182,7 +182,8 @@ app.get('/api/admin/db/user-access', (req, res) => {
     const limit = parseInt(req.query.limit) || 50
     const sortBy = req.query.sortBy || 'created_at'
     const sortOrder = req.query.sortOrder || 'DESC'
-    const result = queryUserAccess({ offset, limit, sortBy, sortOrder })
+    const search = req.query.search || ''
+    const result = queryUserAccess({ offset, limit, sortBy, sortOrder, search })
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
     res.end(JSON.stringify(result))
   } catch (err) {
@@ -197,7 +198,8 @@ app.get('/api/admin/db/generation-log', (req, res) => {
     const limit = parseInt(req.query.limit) || 50
     const sortBy = req.query.sortBy || 'created_at'
     const sortOrder = req.query.sortOrder || 'DESC'
-    const result = queryGenerationLog({ offset, limit, sortBy, sortOrder })
+    const search = req.query.search || ''
+    const result = queryGenerationLog({ offset, limit, sortBy, sortOrder, search })
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
     res.end(JSON.stringify(result))
   } catch (err) {
@@ -210,9 +212,11 @@ app.get('/api/admin/users', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 0
     const perPage = parseInt(req.query.perPage) || 50
+    const search = req.query.search || ''
+    const searchQuery = search ? `&q=${encodeURIComponent(`email:*${search}* OR name:*${search}* OR nickname:*${search}*`)}&search_engine=v3` : ''
     const mgmtToken = await getMgmtAccessToken()
     const userRes = await fetch(
-      `https://${AUTH0_DOMAIN}/api/v2/users?page=${page}&per_page=${perPage}&include_totals=true`,
+      `https://${AUTH0_DOMAIN}/api/v2/users?page=${page}&per_page=${perPage}&include_totals=true${searchQuery}`,
       { headers: { Authorization: `Bearer ${mgmtToken}` } }
     )
     if (!userRes.ok) throw new Error('Failed to fetch users')
