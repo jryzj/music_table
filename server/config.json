@@ -1,12 +1,12 @@
 {
-  "api_url": "https://YOUR_COMFYUI_API.example.com",
-  "token": "YOUR_API_TOKEN_HERE",
+  "api_url": "https://CKRjAFGwhxcKz74nCc2c.830038.xyz",
+  "token": "$2b$12$bFVJofSUepp/mgYNttiIP.Px/y8OWaqfqSlLOPW7YEpyacjhKKuGi",
   "cache_mode": "server",
   "port": 55175,
-  "auth0_domain": "YOUR_TENANT.us.auth0.com",
-  "auth0_client_id": "YOUR_CLIENT_ID",
-  "auth0_audience": "https://music-api.YOUR_DOMAIN.com",
-  "auth0_mgmt_client_id": "YOUR_M2M_CLIENT_ID",
-  "auth0_mgmt_client_secret": "YOUR_M2M_CLIENT_SECRET",
-  "admin_emails": ["admin@example.com"]
+  "auth0_domain": "twttwt.us.auth0.com",
+  "auth0_client_id": "dtVgHVCdcC5eySameogty666arl7vJyy",
+  "auth0_audience": "https://music-api.twttwt.com",
+  "auth0_mgmt_client_id": "L9LqlcQTiHqfMi1qeSAQdhQxvS5rg1dy",
+  "auth0_mgmt_client_secret": "emnVUJ0NwTQXa0ChkWfcWXwuWMIFO9g03PzhqEVqFuHYS0Pxu0CukHCRvc3SMLMa",
+  "admin_emails": ["twttwt@duck.com"]
 }
