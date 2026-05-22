@@ -124,16 +124,8 @@ if (AUTH0_DOMAIN && AUTH0_AUDIENCE) {
 
 app.get('/api/config', (req, res) => {
   if (req.method === 'GET') {
-    const config = {
-      auth0_domain: serverConfig.auth0_domain,
-      auth0_client_id: serverConfig.auth0_client_id,
-      auth0_audience: serverConfig.auth0_audience,
-
-      cache_mode: serverConfig.cache_mode || 'server',
-      admin_emails: serverConfig.admin_emails || []
-    }
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
-    res.end(JSON.stringify(config))
+    res.end(JSON.stringify({ cache_mode: serverConfig.cache_mode || 'server' }))
   } else {
     res.writeHead(404)
     res.end()
