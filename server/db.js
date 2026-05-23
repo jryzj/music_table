@@ -173,6 +173,13 @@ export function getMusicFilename(id) {
   return row ? row.filename : null
 }
 
+export function queryUserMusic(userSub, status = 'open') {
+  const d = initDb()
+  return d.prepare(
+    'SELECT * FROM music_management WHERE user_sub = ? AND music_status = ? ORDER BY created_at DESC'
+  ).all(userSub, status)
+}
+
 export function queryMusicManagement({ offset = 0, limit = 50, sortBy = 'created_at', sortOrder = 'DESC', search = '' } = {}) {
   const d = initDb()
   const sb = MUSIC_SORT_COLS.includes(sortBy) ? sortBy : 'created_at'

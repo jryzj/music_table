@@ -5,7 +5,7 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 import { expressjwt } from 'express-jwt'
 import { expressJwtSecret } from 'jwks-rsa'
-import { initDb, closeDb, logUserAccess, logGeneration, queryUserAccess, queryGenerationLog, insertMusicManagement, updateMusicStatus, deleteMusicRecord, getMusicFilename, queryMusicManagement } from './db.js'
+import { initDb, closeDb, logUserAccess, logGeneration, queryUserAccess, queryGenerationLog, insertMusicManagement, updateMusicStatus, deleteMusicRecord, getMusicFilename, queryMusicManagement, queryUserMusic } from './db.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -120,6 +120,16 @@ if (AUTH0_DOMAIN && AUTH0_AUDIENCE) {
   app.use('/api/log-access', checkJwt)
   app.use('/api/log-generation', checkJwt)
   app.use('/api/admin', checkJwt, adminMiddleware)
+  app.get('/api/user-music', checkJwt, (req, res) => {
+    try {
+      const tracks = queryUserMusic(req.auth.sub)
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+      res.end(JSON.stringify(tracks))
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+      res.end(JSON.stringify({ error: err.message }))
+    }
+  })
 }
 
 app.get('/api/config', (req, res) => {
