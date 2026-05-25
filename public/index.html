@@ -4,6 +4,36 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Music Visual Experience</title>
+    <script>
+      if (!AbortSignal.timeout) {
+        AbortSignal.timeout = function(ms) {
+          var ctrl = new AbortController()
+          setTimeout(function() { ctrl.abort(new DOMException('Timeout', 'TimeoutError')) }, ms)
+          return ctrl.signal
+        }
+      }
+      if (typeof ResizeObserver === 'undefined') {
+        window.ResizeObserver = function(cb) {
+          var els = new Map()
+          var ro = this
+          ro.observe = function(el) { els.set(el, null) }
+          ro.unobserve = function(el) { els.delete(el) }
+          ro.disconnect = function() { els.clear() }
+          function check() {
+            for (var el of els) {
+              var r = el.getBoundingClientRect()
+              var k = r.width + 'x' + r.height
+              if (els.get(el) !== k) {
+                els.set(el, k)
+                cb([{ target: el, contentRect: r }], ro)
+              }
+            }
+            requestAnimationFrame(check)
+          }
+          requestAnimationFrame(check)
+        }
+      }
+    </script>
     <style>
       * {
         margin: 0;
