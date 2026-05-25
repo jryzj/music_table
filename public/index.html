@@ -5,33 +5,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Music Visual Experience</title>
     <script>
-      if (!AbortSignal.timeout) {
-        AbortSignal.timeout = function(ms) {
-          var ctrl = new AbortController()
-          setTimeout(function() { ctrl.abort(new DOMException('Timeout', 'TimeoutError')) }, ms)
-          return ctrl.signal
+      (function() {
+        if (typeof AbortSignal === 'function' && AbortSignal.timeout) return;
+        if (typeof AbortSignal === 'undefined') {
+          window.AbortSignal = function() {
+            this.aborted = false;
+            this.onabort = null;
+            this.reason = undefined;
+          };
         }
-      }
+        if (typeof AbortController === 'undefined') {
+          window.AbortController = function() {
+            var signal = new AbortSignal();
+            var self = this;
+            this.signal = signal;
+            this.abort = function(reason) {
+              if (signal.aborted) return;
+              signal.aborted = true;
+              signal.reason = reason || new DOMException('Aborted', 'AbortError');
+              if (typeof signal.onabort === 'function') signal.onabort();
+            };
+          };
+        }
+        if (!AbortSignal.timeout) {
+          AbortSignal.timeout = function(ms) {
+            var ctrl = new AbortController();
+            setTimeout(function() { ctrl.abort(new DOMException('Timeout', 'TimeoutError')); }, ms);
+            return ctrl.signal;
+          };
+        }
+      })();
       if (typeof ResizeObserver === 'undefined') {
         window.ResizeObserver = function(cb) {
-          var els = new Map()
-          var ro = this
-          ro.observe = function(el) { els.set(el, null) }
-          ro.unobserve = function(el) { els.delete(el) }
-          ro.disconnect = function() { els.clear() }
+          var els = new Map();
+          var ro = this;
+          var running = false;
           function check() {
+            if (els.size === 0) { running = false; return; }
             for (var el of els) {
-              var r = el.getBoundingClientRect()
-              var k = r.width + 'x' + r.height
+              var r = el.getBoundingClientRect();
+              var k = r.width + 'x' + r.height;
               if (els.get(el) !== k) {
-                els.set(el, k)
-                cb([{ target: el, contentRect: r }], ro)
+                els.set(el, k);
+                cb([{ target: el, contentRect: r }], ro);
               }
             }
-            requestAnimationFrame(check)
+            requestAnimationFrame(check);
           }
-          requestAnimationFrame(check)
-        }
+          function start() {
+            if (!running) { running = true; requestAnimationFrame(check); }
+          }
+          ro.observe = function(el) { els.set(el, null); start(); };
+          ro.unobserve = function(el) { els.delete(el); };
+          ro.disconnect = function() { els.clear(); running = false; };
+        };
       }
     </script>
     <style>
@@ -47,8 +74,8 @@
         min-height: 100vh;
       }
     </style>
-    <script type="module" crossorigin src="/assets/index-BVqTac2o.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-D428-G6k.css">
+    <script type="module" crossorigin src="/assets/index-jkrd3uMP.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CCS4Vxgr.css">
   </head>
   <body>
     <div id="root"></div>
