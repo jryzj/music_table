@@ -5,7 +5,7 @@ import fs from 'fs'
 import { fileURLToPath } from 'url'
 import { expressjwt } from 'express-jwt'
 import { expressJwtSecret } from 'jwks-rsa'
-import { initDb, closeDb, logUserAccess, logGeneration, queryUserAccess, queryGenerationLog, insertMusicManagement, updateMusicStatus, deleteMusicRecord, getMusicFilename, queryMusicManagement, queryUserMusic } from './db.js'
+import { initDb, closeDb, logUserAccess, logGeneration, queryUserAccess, queryGenerationLog, insertMusicManagement, updateMusicStatus, deleteMusicRecord, getMusicFilename, queryMusicManagement, queryUserMusic, insertMessage, queryPublicMessages, queryMessages, updateMessageStatus, deleteMessage, getUserAllowMessage, updateUserAllowMessage, queryUserSettings } from './db.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -119,6 +119,8 @@ if (AUTH0_DOMAIN && AUTH0_AUDIENCE) {
   app.use('/music', checkJwt)
   app.use('/api/log-access', checkJwt)
   app.use('/api/log-generation', checkJwt)
+  app.use('/api/messages', checkJwt)
+  app.use('/api/user/settings', checkJwt)
   app.use('/api/admin', checkJwt, adminMiddleware)
   app.get('/api/user-music', checkJwt, (req, res) => {
     try {
@@ -139,7 +141,9 @@ app.get('/api/config', (req, res) => {
       auth0_client_id: serverConfig.auth0_client_id,
       auth0_audience: serverConfig.auth0_audience,
       cache_mode: serverConfig.cache_mode || 'server',
-      admin_emails: serverConfig.admin_emails || []
+      admin_emails: serverConfig.admin_emails || [],
+      message_scroll_count: serverConfig.message_scroll_count || 10,
+      message_scroll_display: serverConfig.message_scroll_display || 3
     }
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
     res.end(JSON.stringify(config))
@@ -570,6 +574,152 @@ app.use('/music-save', (req, res) => {
   } else {
     res.writeHead(404)
     res.end()
+  }
+})
+
+app.post('/api/messages', (req, res) => {
+  if (req.method !== 'POST') { res.writeHead(404); res.end(); return }
+  let body = ''
+  req.on('data', chunk => body += chunk)
+  req.on('end', () => {
+    try {
+      const data = JSON.parse(body)
+      if (!data.content || data.content.length > 140) {
+        res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+        res.end(JSON.stringify({ error: 'Content must be 1-140 characters' }))
+        return
+      }
+      const allow = getUserAllowMessage(req.auth?.sub)
+      if (!allow) {
+        res.writeHead(403, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+        res.end(JSON.stringify({ error: 'Message posting not allowed' }))
+        return
+      }
+      insertMessage({ userSub: req.auth?.sub, email: data.email, content: data.content })
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+      res.end(JSON.stringify({ success: true }))
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+      res.end(JSON.stringify({ error: err.message }))
+    }
+  })
+})
+
+app.get('/api/public/messages', (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 10
+    const rows = queryPublicMessages(limit)
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+    res.end(JSON.stringify(rows))
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+    res.end(JSON.stringify({ error: err.message }))
+  }
+})
+
+app.get('/api/user/settings', (req, res) => {
+  try {
+    const allow = getUserAllowMessage(req.auth?.sub)
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+    res.end(JSON.stringify({ allow_message: !!allow }))
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+    res.end(JSON.stringify({ error: err.message }))
+  }
+})
+
+app.get('/api/admin/messages', (req, res) => {
+  try {
+    const url = new URL(req.url, 'http://localhost')
+    const path = url.pathname
+    const method = req.method
+    const idMatch = path.match(/^\/(\d+)\/status$/)
+    const delMatch = path.match(/^\/(\d+)$/)
+
+    if ((path === '/' || path === '') && method === 'GET') {
+      const offset = parseInt(url.searchParams.get('offset')) || 0
+      const limit = parseInt(url.searchParams.get('limit')) || 50
+      const sortBy = url.searchParams.get('sortBy') || 'created_at'
+      const sortOrder = url.searchParams.get('sortOrder') || 'DESC'
+      const search = url.searchParams.get('search') || ''
+      const result = queryMessages({ offset, limit, sortBy, sortOrder, search })
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+      res.end(JSON.stringify(result))
+      return
+    }
+
+    if (idMatch && method === 'POST') {
+      const id = parseInt(idMatch[1])
+      let body = ''
+      req.on('data', chunk => body += chunk)
+      req.on('end', () => {
+        try {
+          const { status } = JSON.parse(body)
+          updateMessageStatus(id, status)
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+          res.end(JSON.stringify({ success: true }))
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+          res.end(JSON.stringify({ error: err.message }))
+        }
+      })
+      return
+    }
+
+    if (delMatch && method === 'DELETE') {
+      const id = parseInt(delMatch[1])
+      deleteMessage(id)
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+      res.end(JSON.stringify({ success: true }))
+      return
+    }
+
+    res.writeHead(404); res.end()
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+    res.end(JSON.stringify({ error: err.message }))
+  }
+})
+
+app.get('/api/admin/user-settings', (req, res) => {
+  try {
+    const url = new URL(req.url, 'http://localhost')
+    const path = url.pathname
+    const method = req.method
+    const matchSub = path.match(/^\/([^/]+)$/)
+
+    if ((path === '/' || path === '') && method === 'GET') {
+      const offset = parseInt(url.searchParams.get('offset')) || 0
+      const limit = parseInt(url.searchParams.get('limit')) || 50
+      const search = url.searchParams.get('search') || ''
+      const result = queryUserSettings({ offset, limit, search })
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+      res.end(JSON.stringify(result))
+      return
+    }
+
+    if (matchSub && method === 'POST') {
+      const userSub = matchSub[1]
+      let body = ''
+      req.on('data', chunk => body += chunk)
+      req.on('end', () => {
+        try {
+          const { allow_message } = JSON.parse(body)
+          updateUserAllowMessage(userSub, allow_message)
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+          res.end(JSON.stringify({ success: true }))
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+          res.end(JSON.stringify({ error: err.message }))
+        }
+      })
+      return
+    }
+
+    res.writeHead(404); res.end()
+  } catch (err) {
+    res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' })
+    res.end(JSON.stringify({ error: err.message }))
   }
 })
 

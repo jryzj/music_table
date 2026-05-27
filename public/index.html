@@ -35,6 +35,18 @@
           };
         }
       })();
+      if (typeof Object.fromEntries === 'undefined') {
+        Object.fromEntries = function(iterable) {
+          var obj = {};
+          var iterator = iterable[Symbol.iterator]();
+          var entry;
+          while (!(entry = iterator.next()).done) {
+            var pair = entry.value;
+            obj[pair[0]] = pair[1];
+          }
+          return obj;
+        };
+      }
       if (typeof ResizeObserver === 'undefined') {
         window.ResizeObserver = function(cb) {
           var els = new Map();
@@ -42,7 +54,8 @@
           var running = false;
           function check() {
             if (els.size === 0) { running = false; return; }
-            for (var el of els) {
+            for (var entry of els) {
+              var el = entry[0];
               var r = el.getBoundingClientRect();
               var k = r.width + 'x' + r.height;
               if (els.get(el) !== k) {
@@ -74,8 +87,8 @@
         min-height: 100vh;
       }
     </style>
-    <script type="module" crossorigin src="/assets/index-jkrd3uMP.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CCS4Vxgr.css">
+    <script type="module" crossorigin src="/assets/index-COmcTNwt.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DqQlmMR-.css">
   </head>
   <body>
     <div id="root"></div>

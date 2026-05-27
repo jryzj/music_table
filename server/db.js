@@ -64,6 +64,20 @@ export function initDb() {
   if (!cols.some(c => c.name === 'filename')) {
     db.exec('ALTER TABLE generation_log ADD COLUMN filename TEXT')
   }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_sub TEXT,
+      email TEXT,
+      content TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'visible',
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `)
+  const uaCols = db.prepare("PRAGMA table_info(user_access)").all()
+  if (!uaCols.some(c => c.name === 'allow_message')) {
+    db.exec('ALTER TABLE user_access ADD COLUMN allow_message INTEGER DEFAULT 1')
+  }
   return db
 }
 
@@ -178,6 +192,71 @@ export function queryUserMusic(userSub, status = 'open') {
   return d.prepare(
     'SELECT * FROM music_management WHERE user_sub = ? AND music_status = ? ORDER BY created_at DESC'
   ).all(userSub, status)
+}
+
+export function insertMessage({ userSub, email, content }) {
+  const d = initDb()
+  const stmt = d.prepare(
+    'INSERT INTO user_messages (user_sub, email, content) VALUES (?, ?, ?)'
+  )
+  return stmt.run(userSub || null, email || null, content)
+}
+
+export function queryPublicMessages(limit = 10) {
+  const d = initDb()
+  return d.prepare(
+    'SELECT id, email, content, created_at FROM user_messages WHERE status = ? ORDER BY created_at DESC LIMIT ?'
+  ).all('visible', limit)
+}
+
+export function queryMessages({ offset = 0, limit = 50, sortBy = 'created_at', sortOrder = 'DESC', search = '' } = {}) {
+  const d = initDb()
+  const sb = ALLOWED_SORT_COLS.includes(sortBy) ? sortBy : 'created_at'
+  const so = ALLOWED_SORT_ORDERS.includes(sortOrder.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC'
+  const searchClause = search
+    ? `WHERE CAST(um.id AS TEXT) LIKE ? OR um.email LIKE ? OR um.content LIKE ? OR um.created_at LIKE ?`
+    : ''
+  const searchParams = search ? [`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`] : []
+  const total = d.prepare(`SELECT COUNT(*) as count FROM user_messages um ${searchClause}`).get(...searchParams).count
+  const rows = d.prepare(`SELECT um.* FROM user_messages um ${searchClause} ORDER BY ${sb} ${so} LIMIT ? OFFSET ?`).all(...searchParams, limit, offset)
+  return { rows, total }
+}
+
+export function updateMessageStatus(id, status) {
+  const d = initDb()
+  return d.prepare('UPDATE user_messages SET status = ? WHERE id = ?').run(status, id)
+}
+
+export function deleteMessage(id) {
+  const d = initDb()
+  return d.prepare('DELETE FROM user_messages WHERE id = ?').run(id)
+}
+
+export function getUserAllowMessage(userSub) {
+  const d = initDb()
+  const row = d.prepare('SELECT allow_message FROM user_access WHERE user_sub = ?').get(userSub)
+  return row ? row.allow_message : 1
+}
+
+export function updateUserAllowMessage(userSub, allow) {
+  const d = initDb()
+  const existing = d.prepare('SELECT id FROM user_access WHERE user_sub = ?').get(userSub)
+  if (existing) {
+    d.prepare('UPDATE user_access SET allow_message = ? WHERE user_sub = ?').run(allow ? 1 : 0, userSub)
+  } else {
+    d.prepare('INSERT INTO user_access (user_sub, allow_message) VALUES (?, ?)').run(userSub, allow ? 1 : 0)
+  }
+}
+
+export function queryUserSettings({ offset = 0, limit = 50, search = '' } = {}) {
+  const d = initDb()
+  const searchClause = search
+    ? `WHERE CAST(ua.id AS TEXT) LIKE ? OR ua.user_sub LIKE ? OR ua.email LIKE ?`
+    : ''
+  const searchParams = search ? [`%${search}%`, `%${search}%`, `%${search}%`] : []
+  const total = d.prepare(`SELECT COUNT(*) as count FROM user_access ua ${searchClause}`).get(...searchParams).count
+  const rows = d.prepare(`SELECT ua.id, ua.user_sub, ua.email, ua.allow_message, ua.created_at FROM user_access ua ${searchClause} ORDER BY ua.created_at DESC LIMIT ? OFFSET ?`).all(...searchParams, limit, offset)
+  return { rows, total }
 }
 
 export function queryMusicManagement({ offset = 0, limit = 50, sortBy = 'created_at', sortOrder = 'DESC', search = '' } = {}) {
